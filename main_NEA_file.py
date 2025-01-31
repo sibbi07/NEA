@@ -3,7 +3,7 @@ import os
 import sys
 from tilemap import Tilemap, tutorial_tilemap_data
 from Player_file import Player
-from Enemy_file import enemy_group
+from Enemy_file import Enemy, enemy_group
 
 
 pygame.init()
@@ -180,8 +180,9 @@ class Game:
             if self.player.game_over == False:
                 for enemy in enemy_group:
                     # Adjust enemy's position based on camera offset
-                    adjusted_rect = enemy.rect.move(-self.camera_offset_x, -self.camera_offset_y)
-                    self.window.blit(enemy.image, adjusted_rect.topleft)
+                    #adjusted_rect = enemy.rect.move(-self.camera_offset_x, -self.camera_offset_y)
+                    #self.window.blit(enemy.image, adjusted_rect.topleft)
+                    enemy.update()
             
             self.player.update()
             self.player.draw(self.window, self.camera_offset_x, self.camera_offset_y)
