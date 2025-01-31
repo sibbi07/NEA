@@ -8,8 +8,13 @@ class Node:
         self.walkable = True
 
     def get_pos(self):
-        return self.row, self.col
+        return self.x, self.y
     
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y
+    
+    def __hash__(self):
+        return hash((self.x, self.y))
 
 def h_score(n1, n2):
     x1, y1 = n1
