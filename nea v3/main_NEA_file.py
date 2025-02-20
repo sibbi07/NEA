@@ -3,7 +3,7 @@ import os
 import sys
 from tilemap import Tilemap
 from Entities_file import Player
-from game_objects import enemy_group, tutorial_tilemap_data
+from game_objects import enemy_group
 
 
 pygame.init()
@@ -69,8 +69,7 @@ class Game:
         self.scroll = 0
 
         self.camera_offset_x = self.player.rect.centerx - (self.window.get_width() // 2)
-        self.camera_offset_y = self.player.rect.centery - (self.window.get_height() // 2)
-
+        self.camera_offset_y = max(0, self.map.tilemap_height - self.window.get_height())
 
         self.camera_left_limit = self.window.get_width() // 4
         self.camera_right_limit = (self.window.get_width() * 3) // 4
@@ -147,6 +146,8 @@ class Game:
     def play(self):
         while True:
             pygame.display.set_icon(self.logo)
+
+            self.window.fill((0, 0, 0))
 
             bg_x_pos = -self.camera_offset_x // 2 - 1000
             bg_y_pos = -self.camera_offset_y // 2 - 400
