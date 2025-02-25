@@ -3,7 +3,7 @@ import os
 import sys
 from tilemap import Tilemap
 from Entities_file import Player
-from game_objects import enemy_group
+from game_objects import enemy_group, Portal
 
 
 pygame.init()
@@ -36,7 +36,7 @@ class Button:
             return True
         return False
 
-    def changeColour(self, pos):
+    def change_colour(self, pos):
         if(
             pos[0] in range(self.rect.left, self.rect.right) and
             pos[1] in range(self.rect.top, self.rect.bottom)
@@ -62,7 +62,7 @@ class Game:
         self.play_button_img = pygame.image.load("buttons/play_button.png")
 
 
-        self.map = Tilemap("maps/tutorial map.tmj", self.window)
+        self.map = Tilemap("maps/tutorial map.tmx")
         self.player = Player(self.window, self.map)
         self.map.set_entities(self.player)
 
@@ -79,15 +79,6 @@ class Game:
         self.main_font = pygame.font.SysFont("broadway", 80)
         self.sub_font = pygame.font.SysFont("broadway", 65)
     
-    def draw_grid(self):
-        self.tile_size = 48
-        
-        for line in range(0, self.window.get_width()):
-            pygame.draw.line(self.window, (255, 255, 255), (0, line *  self.tile_size), (self.window.get_width(), line * self.tile_size))
-        
-        for line in range(0, self.window.get_height()):
-            pygame.draw.line(self.window, (255, 255, 255), (line *  self.tile_size, 0), (line * self.tile_size, self.window.get_height()))
-
     def main_menu(self):
         while True:
             self.background = pygame.image.load("maps/game over screens/main menu screen (2).png")
@@ -105,7 +96,7 @@ class Game:
             self.window.blit(self.menu_text_2, self.menu_rect_2)
 
             for button in [self.play_button, self.settings_button]:
-                button.changeColour(self.menu_mouse_pos)
+                button.change_colour(self.menu_mouse_pos)
                 button.update(self.window)
 
             for event in pygame.event.get():
@@ -130,7 +121,7 @@ class Game:
             self.back_button = Button(self.play_button_img, 300, 500, self.main_font, "BACK", "white", (95, 156, 95))
 
             for button in [self.controls_button, self.music_button, self.back_button]:
-                button.changeColour(self.settings_mouse_pos)
+                button.change_colour(self.settings_mouse_pos)
                 button.update(self.window)
 
             for event in pygame.event.get():
@@ -153,7 +144,7 @@ class Game:
             bg_y_pos = -self.camera_offset_y // 2 - 400
 
             self.update_camera()
-            
+
             if self.player.game_over == False:
                 for i in range(0, 2):
                     self.window.blit(self.bg, (self.bg.get_width() * i + self.scroll + bg_x_pos, bg_y_pos))
@@ -164,8 +155,6 @@ class Game:
                 if abs(self.scroll) > self.bg.get_width():
                     self.scroll = 0
 
-            self.draw_grid()
-
             self.map.draw(self.window, self.camera_offset_x, self.camera_offset_y)
             if self.player.game_over == False:
                 for enemy in enemy_group:
@@ -174,6 +163,19 @@ class Game:
                     
                 
             self.player.update()
+            for portal in self.map.portals_list:
+                if portal.check_collision(self.player):
+                    print(f"Teleporting to: {portal.destination_map} at {portal.spawn_pos}")
+                    self.load_map(portal.destination_map, portal.spawn_pos[0], portal.spawn_pos[1])
+            
+            for portal in self.map.portals_list:
+                portal.update()
+                '''if portal.rect.colliderect(pygame.Rect(self.camera_offset_x, self.camera_offset_y, self.window.get_width(), self.window.get_height())):
+                    print(f"Portal at {portal.rect.topleft}")
+                    portal.draw(self.window, self.camera_offset_x, self.camera_offset_y)
+                else:
+                    print(f"Portal isn't on screen. Portal at {portal.rect.topleft}")'''
+
             self.player.draw(self.window, self.camera_offset_x, self.camera_offset_y)
 
             if self.player.game_over == True:
@@ -186,6 +188,23 @@ class Game:
 
             pygame.display.update()
             self.clock.tick(60)
+    
+    def load_map(self, map_file, spawn_x, spawn_y):
+        self.map.tile_list.clear()
+        self.map.decorations_list.clear()
+        self.map.portals_list.clear()
+        enemy_group.empty()
+        
+        self.map = Tilemap(map_file)
+        self.map.data["__file__"] = map_file
+
+        self.player.rect.x = spawn_x
+        self.player.rect.y = spawn_y
+
+        self.camera_offset_x = self.player.rect.centerx - (self.window.get_width() // 2)
+        self.camera_offset_y = self.player.rect.centery - (self.window.get_height() // 2)
+
+        self.map.set_entities(self.player)
     
     def update_camera(self):
         self.player_centre_x = self.player.rect.centerx
@@ -201,9 +220,8 @@ class Game:
         elif self.player_centre_y - self.camera_offset_y > self.camera_bottom_limit:
             self.camera_offset_y = self.player_centre_y - self.camera_bottom_limit 
 
-        self.camera_offset_x = max(0, min(self.camera_offset_x, self.map.tilemap_width - self.window.get_width()))
-
-
+        if hasattr(self.map, "tilemap_width") and self.map.tilemap_width > 0:
+            self.camera_offset_x = max(0, min(self.camera_offset_x, self.map.tilemap_width - self.window.get_width()))
 
 if __name__ == "__main__":
     game = Game()
