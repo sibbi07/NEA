@@ -41,6 +41,14 @@ class Enemy(pygame.sprite.Sprite):
         self.speed = 2
         self.tile_size = 48
 
+        self.health = 3
+        self.alive = True
+
+    def take_damage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            self.kill()
+
     def calculate_path(self):
         start_x = self.rect.x // self.tile_size
         start_y = self.rect.y // self.tile_size
@@ -102,6 +110,10 @@ class Enemy(pygame.sprite.Sprite):
     
 
     def update(self):
+        if self not in enemy_group:
+            return
+        if not self.alive:
+            return
         if (
             not self.path or
             self.path[-1] != (self.player.rect.x // self.tile_size, self.player.rect.y // self.tile_size)
@@ -128,53 +140,64 @@ class Enemy(pygame.sprite.Sprite):
                 self.path.pop(0)
 
     def draw(self, window, camera_x, camera_y):
-        window.blit(self.image, self.rect.move(-camera_x, -camera_y))
+        self.draw_rect = self.rect.move(-camera_x, -camera_y)
+        window.blit(self.image, self.draw_rect.topleft)
+        pygame.draw.rect(window, (255, 255, 255), self.rect, 2)  # Draw white rectangle around the player
             
 
     
 class Player:
     def __init__(self, window, tilemap):
-        self.width = 20
-        self.height = 30
-        self.scale_factor = 2
+        self.width = 16
+        self.height = 16
+        self.scale_factor = 2.5
         self.current_frame = 0
         self.frame_counter = 0
-        self.facing_left = False
+        self.facing_right = True  # Change to True
         self.is_jump = False
-        self.jump_vel = 20
+        self.jump_vel = 22
         self.grav = 1
         self.game_over = False
 
         self.tilemap = tilemap
 
-        
-        self.spritesheet = pygame.image.load('Sprites/NEA + converted terraria sprites/Terraria_playable_char.png').convert_alpha()
-        self.idle = pygame.image.load('Sprites/NEA + converted terraria sprites/Terraria_idle.png')
-        self.idle = pygame.transform.scale(self.idle, (self.width * self.scale_factor, self.height * self.scale_factor))
-
+        self.walking_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_run_anim_strip_6.png').convert_alpha()
+        self.attacking_spritesheet = pygame.image.load('Sprites/Knight 2D Pixel Art/Sprites/without_outline/ATTACK 1.png').convert_alpha()
+        self.idle_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_idle_anim_strip_4.png').convert_alpha()
+        self.idle = [
+            loadSprite_x(self.idle_spritesheet, self.width, self.height, i, self.scale_factor, False)
+            for i in range(3)
+        ]
         self.player_walking_left = [
-            loadSprite_x(self.spritesheet, self.width, self.height, i, self.scale_factor, False)
-            for i in range(7, 18)
-            ]
+            loadSprite_x(self.walking_spritesheet, self.width, self.height, i, self.scale_factor, False)
+            for i in range(7)
+        ]
+        self.player_walking_right = [pygame.transform.flip(i, True, False) for i in self.player_walking_left]
         
-        self.player_walking_right = [
-            pygame.transform.flip(i, True, False)
-            for i in self.player_walking_left
-            ]
+        self.player_attacking_left = [
+            loadSprite_x(self.attacking_spritesheet, self.width, self.height, i, self.scale_factor, False) 
+            for i in range(5)
+        ]
+        self.player_attacking_right = [pygame.transform.flip(i, True, False) for i in self.player_attacking_left]
+        
+        # Ensure the last frame is not empty by repeating the last valid frame
+        if not self.idle[-1]:
+            self.idle[-1] = self.idle[-2]
+        if not self.player_walking_left[-1]:
+            self.player_walking_left[-1] = self.player_walking_left[-2]
+        if not self.player_attacking_left[-1]:
+            self.player_attacking_left[-1] = self.player_attacking_left[-2]
 
-        self.image = self.idle
+        self.image = self.idle[0]
         self.rect = self.image.get_rect()
         self.rect.x = 50
         self.rect.y = self.tilemap.tilemap_height - self.image.get_height() - 50
         self.width = self.image.get_width()
         self.height = self.image.get_height()
-        self.ground_level = self.rect.y
-
+        self.ground_level = self.calculate_ground_level()
 
         self.movement = [0, 0] 
-        #Initialises x and y movement to be 0 in both directions        
         self.speed = 3
-        #Movement multiplier
 
         self.dashing = False
         self.dash_speed = 10
@@ -184,7 +207,6 @@ class Player:
         self.dash_cooldown_timer = 0
 
         self.animation_speed = 3
-        #The speed for the animation to change
         self.frame_counter = 0
         self.is_on_ground = True
         self.jump_count = 2
@@ -195,33 +217,37 @@ class Player:
             print(f"Player spawned inside a tile at {self.rect.topleft}, moving up...")
             self.rect.y -= 5  # Move the player up to find a valid position
 
+        self.sword_range = 30
+        self.attack_cooldown = 30
+        self.attack_timer = 0
+        self.is_attacking = False
+        self.sword_damage = 1
+
+    def calculate_ground_level(self):
+        bottom_tiles = [tile_rect.top for _, tile_rect, _ in self.tilemap.tile_list if tile_rect.bottom == self.tilemap.tilemap_height]
+        return min(bottom_tiles) if bottom_tiles else self.tilemap.tilemap_height
 
     def input_handling(self, event):
         if self.game_over == False:
             if event.type == pygame.KEYDOWN: 
-            #Horizontal movement begins if the key is pressed down
                 if not self.dashing:
                     if event.key == pygame.K_RIGHT:
                         self.movement[0] = self.speed
-                        #Adding self.speed to the movement
-                        self.facing_left = False
-
+                        self.facing_right = True
                     elif event.key == pygame.K_LEFT:
                         self.movement[0] = -self.speed
-                        #Subtracting self.speed from the movement
-                        self.facing_left = True
-            
+                        self.facing_right = False
+                        
                 if event.key == pygame.K_SPACE:
                     self.jump()
-                
                 if event.key == pygame.K_q:
                     self.dash()
+                if event.key == pygame.MOUSEBUTTONDOWN:
+                    self.swing_sword()
 
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_RIGHT or event.key == pygame.K_LEFT:
                     self.movement[0] = 0  
-
-                #Horizontal movement ends if the key is lifted
 
     def update(self):
         if self.game_over:
@@ -232,12 +258,8 @@ class Player:
             if self.dash_timer <= 0:
                 self.dashing = False
                 self.movement[0] = 0
-
-        if self.dash_cooldown_timer > 0:
-            self.dash_cooldown_timer -= 1
-            
-        self.rect.x += self.movement[0] 
-        #Updates player x position by the value in self.movement[0]
+        
+        self.rect.x += self.movement[0]
         self.horizontal_collisions()
 
         if not self.is_on_ground:
@@ -246,41 +268,36 @@ class Player:
         self.rect.y += self.movement[1]
         self.vertical_collisions()
 
-        if self.is_on_ground and self.jump_count != 2:
-            self.jump_count = 2
-
-        self.is_on_ground = False
-
-        for _, tile_rect, tile_mask in self.tilemap.tile_list:
-            if self.check_mask_collisions(tile_rect, tile_mask):
-                self.is_on_ground = True
-                self.is_jump = False
-                self.jump_count = 2
-                break
-
-        if self.movement[0] != 0:
-            self.frame_counter += 1
-            if self.frame_counter >= self.animation_speed:
-                self.frame_counter = 0
-                self.current_frame = (self.current_frame + 1) % len(self.player_walking_left)
-            if self.facing_left:
-                self.image = self.player_walking_left[self.current_frame]
-            else:
-                self.image = self.player_walking_right[self.current_frame]
-        else:
-            if self.facing_left == True:
-                self.image = self.idle
-            else:
-                self.image = pygame.transform.flip(self.idle, True, False)
-        
+        self.update_animation()
         self.mask = pygame.mask.from_surface(self.image)
 
+        if self.dash_cooldown_timer > 0:
+            self.dash_cooldown_timer -= 1
+    
+    def update_attack_animation(self):
+        if self.facing_right:
+            self.image = self.player_attacking_left[self.attack_frame]
+        else:
+            self.image = self.player_attacking_right[self.attack_frame]
+
+        if self.attack_frame == 2:
+            self.check_sword_collision()
+    
+    def check_sword_collision(self):
+        enemies_hit = pygame.sprite.spritecollide(self, enemy_group, False)
+        for enemy in enemies_hit:
+            enemy.take_damage(self.sword_damage)
     
     def jump(self):
         if self.jump_count > 0:
             self.movement[1] = -self.jump_vel
             self.jump_count -= 1
             self.is_jump = True
+
+    def swing_sword(self):
+        self.is_attacking = True
+        self.attack_timer = self.attack_cooldown
+        self.attack_frame = 0
 
     def dash(self):
         if (
@@ -290,7 +307,8 @@ class Player:
             self.dashing = True
             self.dash_timer = self.dash_duration
             self.dash_cooldown_timer = self.dash_cooldown
-            self.movement[0] = self.dash_speed if not self.facing_left else -self.dash_speed
+            
+            self.movement[0] = -self.dash_speed if not self.facing_right else self.dash_speed
 
     def check_mask_collisions(self, tile_rect, tile_mask):
         offset_x = tile_rect.x - self.rect.x
@@ -298,46 +316,50 @@ class Player:
         return self.mask.overlap(tile_mask, (offset_x, offset_y))
     
     def horizontal_collisions(self):
-        if self.rect.left < 0:
-            self.rect.left = 0
-            self.movement[0] = 0
+        future_rect = self.rect.copy()
+        future_rect.x += self.movement[0]
 
-        elif self.rect.right + self.movement[0] > self.tilemap.tilemap_width:
-            self.rect.right = self.tilemap.tilemap_width
-            self.movement[0] = 0
-        
-        
         for _, tile_rect, tile_mask in self.tilemap.tile_list:
-            if self.check_mask_collisions(tile_rect, tile_mask):
+            if future_rect.colliderect(tile_rect):
                 if self.movement[0] > 0:
                     self.rect.right = tile_rect.left
-                if self.movement[0] < 0:
-                    self.rect.left = tile_rect.right 
-    
-        #if pygame.sprite.spritecollide(self, enemy_group, False):
-            #self.game_over = True
-            #print(self.game_over)                 
+                elif self.movement[0] < 0:
+                    self.rect.left = tile_rect.right
+                self.movement[0] = 0
 
     def vertical_collisions(self):
         self.is_on_ground = False
+        future_rect = self.rect.copy()
+        future_rect.y += self.movement[1]
+
         for _, tile_rect, tile_mask in self.tilemap.tile_list:
-            if self.check_mask_collisions(tile_rect, tile_mask):
-                if self.movement[1] > 0: 
+            if future_rect.colliderect(tile_rect):
+                if self.movement[1] > 0:
                     self.rect.bottom = tile_rect.top
                     self.is_on_ground = True
                     self.movement[1] = 0
-                    self.is_jump = False
+                    self.jump_count = 2
                 elif self.movement[1] < 0:
-                    self.rect.top = tile_rect.bottom + 1
+                    self.rect.top = tile_rect.bottom
                     self.movement[1] = 0
+        if not self.is_on_ground:
+            self.movement[1] += self.grav
+            self.movement[1] = min(self.movement[1], 10)
 
-        if self.rect.y >= self.ground_level:
-            self.rect.y = self.ground_level
-            self.is_on_ground = True
+        if self.is_on_ground and self.movement[0] == 0:
             self.movement[1] = 0
 
+    def update_animation(self):
+        self.frame_counter += 1
+        if self.frame_counter >= 5:
+            self.frame_counter = 0
+            self.current_frame = (self.current_frame + 1) % len(self.player_walking_right)
+
+        if self.movement[0] != 0:
+            self.image = self.player_walking_right[self.current_frame] if self.facing_right else self.player_walking_left[self.current_frame]
+        else:
+            self.image = self.idle[self.current_frame % len(self.idle)] 
 
     def draw(self, window, camera_x, camera_y):
         self.draw_rect = self.rect.move(-camera_x, -camera_y)
         window.blit(self.image, self.draw_rect.topleft)
-        #Draws the image at the newly determined position
