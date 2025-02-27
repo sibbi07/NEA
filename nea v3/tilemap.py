@@ -118,17 +118,17 @@ class Tilemap():
         return True
 
     def make_grid(self):
-        from Entities_file import Node
-        grid_width = self.data["width"]
-        grid_height = self.data["height"]
-        grid = [[Node(x,  y) for x in range(grid_width)] for y in range(grid_height)]
-
-        for _, tile_rect in self.tile_list:
-            x = tile_rect.x // tile_size
-            y = tile_rect.x // tile_size
-            if (
-                0 <= y < grid_height and
-                0 <= x < grid_width
-            ):
-                grid[y][x].walkable = False
-        return grid
+            from Entities_file import Node # Initalises the node inside this function to avoid circular imports
+            grid_width = self.data["width"] # Gets the width of the grid
+            grid_height = self.data["height"] # Gets the height of the grid
+            grid = [[Node(x,  y) for x in range(grid_width)] for y in range(grid_height)] # Creates a 2D list of nodes
+    
+            for _, tile_rect in self.tile_list: # Loops through all the tiles in the tile list
+                x = tile_rect.x // tile_size # Creates the x coordinate of the tile
+                y = tile_rect.x // tile_size # Creates the y coordinate of the tile
+                if (
+                    0 <= y < grid_height and
+                    0 <= x < grid_width
+                ): # Checks if the tile is within the grid
+                    grid[y][x].walkable = False # Sets the node to unwalkable
+            return grid
