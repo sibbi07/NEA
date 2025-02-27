@@ -26,7 +26,6 @@ class Node:
 def h_score(pos1, pos2): # Heuristic score
     x1, y1 = pos1
     x2, y2 = pos2
-
     return abs(x1 - x2) + abs(y1- y2) # Creates an estimate of the distance between the two nodes but it is not the actual distance of the path
 
 class Enemy(pygame.sprite.Sprite):
