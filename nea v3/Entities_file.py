@@ -5,139 +5,138 @@ from game_objects import enemy_group
 
 class Node:
     def __init__(self,x, y):
-        self.x = x
-        self.y = y
-        self.parent = None
-        self.walkable = True
-        self.f_score = float("inf")
+        self.x = x # X coordinate of the node
+        self.y = y # Y coordinate of the node
+        self.parent = None # Parent node of the current node
+        self.walkable = True # Node is initially walkable
+        self.f_score = float("inf") # Sets the f score as infinite initially
 
     def get_pos(self):
-        return self.x, self.y
+        return self.x, self.y # Returns the x and y coordinates of the node
     
     def __eq__(self, other):
-        return self.x == other.x and self.y == other.y
+        return self.x == other.x and self.y == other.y # Checks if the x and y coordinates of the nodes are the same
     
     def __hash__(self):
-        return hash((self.x, self.y))
+        return hash((self.x, self.y)) # Returns the hash of the x and y coordinates of the node. This is needed because the node is used in a set
     
     def __lt__(self, other):
-        return self.f_score < other.f_score
+        return self.f_score < other.f_score # Compares the f score of the current node with another node
 
-def h_score(pos1, pos2):
+def h_score(pos1, pos2): # Heuristic score
     x1, y1 = pos1
     x2, y2 = pos2
 
-    return abs(x1 - x2) + abs(y1- y2)
+    return abs(x1 - x2) + abs(y1- y2) # Creates an estimate of the distance between the two nodes but it is not the actual distance of the path
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y, tilemap, player):
         super().__init__()
-        self.spritesheet = pygame.image.load("Sprites/NEA + converted terraria sprites/Enemy converted/NPC_21.png")
-        self.image = loadSprite_y(self.spritesheet, 40, 56, 1, 1, False)
-        self.rect = self.image.get_rect(topleft = (x,y))
-        self.tilemap = tilemap
-        self.player = player
-        self.path = []
-        self.speed = 2
+        self.spritesheet = pygame.image.load("Sprites/NEA + converted terraria sprites/Enemy converted/NPC_4.png")
+        self.image = loadSprite_y(self.spritesheet, 40, 56, 1, 1, False) # Loads the image of the enemy
+        self.rect = self.image.get_rect(topleft = (x,y)) # Set the rect of the enemy to the rect of the image
+        self.tilemap = tilemap # Initialise the tilemap
+        self.player = player # Initalise the player
+        self.path = [] # Make the path empty initially
+        self.speed = 4
         self.tile_size = 48
 
         self.health = 3
         self.alive = True
 
-    def take_damage(self, damage):
-        self.health -= damage
+    def take_damage(self, damage): # Function for the enemy to take damage
+        self.health -= damage # Reduce the health of the enemy by the damage dealt
         if self.health <= 0:
-            self.kill()
+            self.kill() # Get rid of the sprite if the enemy has no health
 
     def calculate_path(self):
-        start_x = self.rect.x // self.tile_size
-        start_y = self.rect.y // self.tile_size
+        start_x = self.rect.x // self.tile_size # Gets the x coordinate of the enemy
+        start_y = self.rect.y // self.tile_size # Gets the y coordinate of the enemy
 
-        goal_x = self.player.rect.x // self.tile_size
-        goal_y = self.player.rect.y // self.tile_size
+        goal_x = self.player.rect.x // self.tile_size # Gets the x coordinate of the player
+        goal_y = self.player.rect.y // self.tile_size # Gets the y coordinate of the player
 
         start = (start_x, start_y)
         goal = (goal_x, goal_y)
 
-        if start == goal:
+        if start == goal: # If the enemy is on the same tile as the player, end the path calculation
             return
         
-        open_set = PriorityQueue()
-        open_set.put((0, start))
-        came_from = {}
-        g_score = {start: 0}
-        f_score = {start: h_score(start, goal)}
+        open_set = PriorityQueue() # Creates a priority queue
+        open_set.put((0, start)) # Puts the start node into the open set
+        came_from = {} # Creates a dictionary to store each previous node
+        g_score = {start: 0} # Creates a dictionary to store the G-score of each node. G-score is the cost of the path from the start node to the current node
+        f_score = {start: h_score(start, goal)} # Creates a dictionary to store the F-score of each node. F-score is the sum of the G-score and the H-score of the node
 
-        while not open_set.empty():
-            _, current_node = open_set.get()
+        while not open_set.empty(): # While there is still nodes in the open set
+            _, current_node = open_set.get() # Gets the current node from the open set
 
-            if current_node == goal:
+            if current_node == goal: # If the goal is found, reconstruct the path
                 self.reconstruct_path(came_from, current_node)
                 return
             
-            for neighbour in self.get_neighbours(current_node):
-                temp_g_score = g_score[current_node] + 1
+            for neighbour in self.get_neighbours(current_node): # For each neighbour of the current node 
+                temp_g_score = g_score[current_node] + 1 # Calculate the temporary G-score of the neighbour. This is used to determine if the a different path is shorter than the current one
 
-                if temp_g_score < g_score.get(neighbour, float('inf')):
+                if temp_g_score < g_score.get(neighbour, float('inf')): # If the temp G-score is less than the current G-score of the neighbour, it means that the path is shorter
                     came_from[neighbour] = current_node
-                    g_score[neighbour] = temp_g_score
-                    f_score[neighbour] = g_score[neighbour] + h_score(neighbour, goal)
-                    open_set.put((f_score[neighbour], neighbour))
+                    g_score[neighbour] = temp_g_score # Since the temporary G-score is shorter than the current G-score, the temporary G-score becomes the current as we want the shortest path.
+                    f_score[neighbour] = g_score[neighbour] + h_score(neighbour, goal) # New F-score is calculated
+                    open_set.put((f_score[neighbour], neighbour)) # The neighbour is added to the open set with the updated F-score
 
 
     def reconstruct_path(self, came_from, current_node):
-        path = []
-        while current_node in came_from:
-            path.append(current_node)
-            current_node = came_from[current_node]
-        self.path = path[::-1]
+        path = [] # Creates a list to store the path
+        while current_node in came_from: # While there is still nodes in the came_from dictionary
+            path.append(current_node) # Add the current node to the path
+            current_node = came_from[current_node] # Move to the previous node
+        self.path = path[::-1] # Since the path is from the player to the enemy, reverse it for the path from the enemy to the player
     
     def get_neighbours(self, node):
         x, y = node
-        neighbours = []
+        neighbours = [] # List to store the neighbours of the node
         directions = [
             (0, -1), # Up
             (0, 1), # Down
             (-1, 0), # Left
             (1, 0), # Right
-        ]
+        ] # List of directions to check for neighbours
 
-        for dx, dy in directions:
-            new_cor = (x + dx), (y + dy)
-            if self.tilemap.is_walkable(new_cor):
-                neighbours.append(new_cor)
+        for self.movement in directions:
+            new_cor = (x + self.movement[0]), (y + self.movement[1]) # Calculate the new coordinates of the neighbour
+            if self.tilemap.is_walkable(new_cor): # Checks if the node is walkable
+                neighbours.append(new_cor) # If the node is walkable, add it to the neighbours list
         return neighbours
     
 
     def update(self):
         if self not in enemy_group:
-            return
-        if not self.alive:
+            return # Doesn't find the path if the enemy sprite is not there
+        if not self.alive: # Doesn't find the path if the enemy is 'dead'
             return
         if (
             not self.path or
             self.path[-1] != (self.player.rect.x // self.tile_size, self.player.rect.y // self.tile_size)
-        ):
-            self.calculate_path()
-        if self.path:
-            next_x, next_y = self.path[0]
-            target_x = next_x * self.tile_size
-            target_y = next_y * self.tile_size
+        ): 
+            self.calculate_path() # If there is no path or the player has moved, find a new path
+        if self.path: # If there is a path
+            next_x, next_y = self.path[0] # Get the next node in the path
+            target_x = next_x * self.tile_size # Calculate the target x coordinate
+            target_y = next_y * self.tile_size # Calculate the target y coordinate
 
-            dx = target_x - self.rect.x
-            dy = target_y - self.rect.y
+            self.movement = ((target_x - self.rect.x), (target_y - self.rect.y))
 
-            if abs(dx) > self.speed:
-                self.rect.x += self.speed if dx > 0 else -self.speed
-            elif abs(dx) > 0:
-                self.rect.x = target_x
-            if abs(dy) > 0:
-                self.rect.y += self.speed if dy > 0 else -self.speed
-            elif abs(dy) > 0:
-                self.rect.y = target_y
+            if abs(self.movement[0]) > self.speed: # If the x movement is greater than the speed
+                self.rect.x += self.speed if self.movement[0] > 0 else -self.speed # Move the enemy by the speed depending on direction
+            elif abs(self.movement[0]) > 0: # If the x movement is less than the speed
+                self.rect.x = target_x # Snap the enemy to the target x coordinate
+            if abs(self.movement[1]) > self.speed: # If the y movement is greater than the speed
+                self.rect.y += self.speed if self.movement[1] > 0 else -self.speed # Move the enemy by the speed depending on direction
+            elif abs(self.movement[1]) > 0: # If the y movement is less than the speed
+                self.rect.y = target_y # Snap the enemy to the target y coordinate
 
-            if self.rect.x == target_x and self.rect.y == target_y:
-                self.path.pop(0)
+            if self.rect.x == target_x and self.rect.y == target_y: # If the enemy has reached the target node
+                self.path.pop(0) # Remove the target node from the path
 
     def draw(self, window, camera_x, camera_y):
         self.draw_rect = self.rect.move(-camera_x, -camera_y)
@@ -155,38 +154,13 @@ class Player:
         self.frame_counter = 0
         self.facing_right = True  # Change to True
         self.is_jump = False
-        self.jump_vel = 22
+        self.jump_vel = 30
         self.grav = 1
         self.game_over = False
 
         self.tilemap = tilemap
 
-        self.walking_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_run_anim_strip_6.png').convert_alpha()
-        self.attacking_spritesheet = pygame.image.load('Sprites/Knight 2D Pixel Art/Sprites/without_outline/ATTACK 1.png').convert_alpha()
-        self.idle_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_idle_anim_strip_4.png').convert_alpha()
-        self.idle = [
-            loadSprite_x(self.idle_spritesheet, self.width, self.height, i, self.scale_factor, False)
-            for i in range(3)
-        ]
-        self.player_walking_left = [
-            loadSprite_x(self.walking_spritesheet, self.width, self.height, i, self.scale_factor, False)
-            for i in range(7)
-        ]
-        self.player_walking_right = [pygame.transform.flip(i, True, False) for i in self.player_walking_left]
-        
-        self.player_attacking_left = [
-            loadSprite_x(self.attacking_spritesheet, self.width, self.height, i, self.scale_factor, False) 
-            for i in range(5)
-        ]
-        self.player_attacking_right = [pygame.transform.flip(i, True, False) for i in self.player_attacking_left]
-        
-        # Ensure the last frame is not empty by repeating the last valid frame
-        if not self.idle[-1]:
-            self.idle[-1] = self.idle[-2]
-        if not self.player_walking_left[-1]:
-            self.player_walking_left[-1] = self.player_walking_left[-2]
-        if not self.player_attacking_left[-1]:
-            self.player_attacking_left[-1] = self.player_attacking_left[-2]
+        self.load_spritesheets()
 
         self.image = self.idle[0]
         self.rect = self.image.get_rect()
@@ -210,6 +184,11 @@ class Player:
         self.frame_counter = 0
         self.is_on_ground = True
         self.jump_count = 2
+        self.is_on_wall = False
+        self.is_holding_wall = False
+        self.has_wall_jumped = False
+        self.wall_jump_duration = 15
+        self.wall_jump_timer = 0
 
         self.mask = pygame.mask.from_surface(self.image)
 
@@ -226,62 +205,149 @@ class Player:
     def calculate_ground_level(self):
         bottom_tiles = [tile_rect.top for _, tile_rect, _ in self.tilemap.tile_list if tile_rect.bottom == self.tilemap.tilemap_height]
         return min(bottom_tiles) if bottom_tiles else self.tilemap.tilemap_height
+    
+    def flip_sprites(self, sprites):
+        return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
+    
+    def load_sprites(self, sprite_sheet, frame_num):
+        frame_num = max(frame_num, 1)
+        return [loadSprite_x(sprite_sheet, self.width, self.height, i, self.scale_factor, False) for i in range(frame_num)]
+    
+    def load_spritesheets(self):
+        self.walking_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_run_anim_strip_6.png').convert_alpha()
+        self.attacking_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_sword_attack_anim_strip_4.png').convert_alpha()
+        self.idle_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_idle_anim_strip_4.png').convert_alpha()
+        self.jumping_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_jump_up_anim_strip_3.png').convert_alpha()
+        self.falling_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_jump_down_anim_strip_3.png').convert_alpha()
+        
+        self.idle = self.load_sprites(self.idle_spritesheet, 3)
+        self.walking_right = self.load_sprites(self.walking_spritesheet, 7)
+        self.attacking_right = self.load_sprites(self.attacking_spritesheet, 3)
+        self.jumping_right = self.load_sprites(self.jumping_spritesheet, 2)
+        self.falling_right = self.load_sprites(self.falling_spritesheet, 2)
+
+        self.walking_left = self.flip_sprites(self.walking_right)
+        self.attacking_left = self.flip_sprites(self.attacking_right)
+        self.jumping_left = self.flip_sprites(self.jumping_right)
+        self.falling_left = self.flip_sprites(self.falling_right)
+
+        self.ensure_last_frame(self.idle)
+        self.ensure_last_frame(self.walking_right)
+        self.ensure_last_frame(self.attacking_right)
+   
+    def ensure_last_frame(self, sprite_list):
+        if not sprite_list[-1]:
+            sprite_list[-1] = sprite_list[-2]
+    
+    def update_animation(self):
+        if self.is_attacking:
+            self.frame_counter += 1
+            if self.frame_counter >= 5:
+                self.frame_counter = 0
+                self.current_frame = (self.current_frame + 1) % len(self.attacking_right)
+            if self.facing_right:
+                self.image = self.attacking_right[self.current_frame % len(self.attacking_right)]
+            else:
+                self.image = self.attacking_left[self.current_frame % len(self.attacking_left)]
+            if self.current_frame == 2:
+                self.check_sword_collision()
+        elif not self.is_on_ground:
+            self.frame_counter += 1
+            if self.frame_counter >= 5:
+                self.frame_counter = 0
+                self.current_frame = (self.current_frame + 1) % len(self.jumping_right)
+            if self.movement[1] < 0:
+                self.image = self.jumping_right[self.current_frame % len(self.jumping_right)] if self.facing_right else self.jumping_left[self.current_frame % len(self.jumping_left)]
+            else:
+                self.image = self.falling_right[self.current_frame % len(self.falling_right)] if self.facing_right else self.falling_left[self.current_frame % len(self.falling_left)]
+        elif self.movement[0] != 0:
+            self.frame_counter += 1
+            if self.frame_counter >= 5:
+                self.frame_counter = 0
+                self.current_frame = (self.current_frame + 1) % len(self.walking_right)
+            self.image = self.walking_right[self.current_frame % len(self.walking_right)] if self.facing_right else self.walking_left[self.current_frame % len(self.walking_left)]
+        else:
+            self.frame_counter += 1
+            if self.frame_counter >= 5:
+                self.frame_counter = 0
+                self.current_frame = (self.current_frame + 1) % len(self.idle)
+            self.image = self.idle[self.current_frame % len(self.idle)]
 
     def input_handling(self, event):
         if self.game_over == False:
-            if event.type == pygame.KEYDOWN: 
+            if event.type == pygame.KEYDOWN:
                 if not self.dashing:
-                    if event.key == pygame.K_RIGHT:
+                    if event.key in [pygame.K_RIGHT, pygame.K_d]:
                         self.movement[0] = self.speed
                         self.facing_right = True
-                    elif event.key == pygame.K_LEFT:
+                    elif event.key in [pygame.K_LEFT, pygame.K_a]:
                         self.movement[0] = -self.speed
                         self.facing_right = False
-                        
+
                 if event.key == pygame.K_SPACE:
-                    self.jump()
-                if event.key == pygame.K_q:
+                    if self.is_holding_wall:  # If clinging to the wall, perform wall jump
+                        self.wall_jump()
+                    else:
+                        self.jump()  # Regular jump
+                
+                elif event.key == pygame.K_q:
                     self.dash()
-                if event.key == pygame.MOUSEBUTTONDOWN:
+                elif event.key == pygame.K_e:
                     self.swing_sword()
+                elif event.key == pygame.K_z:
+                    if self.is_touching_wall() and not self.is_on_ground:
+                        self.is_holding_wall = True  # Start clinging to wall
 
             elif event.type == pygame.KEYUP:
-                if event.key == pygame.K_RIGHT or event.key == pygame.K_LEFT:
-                    self.movement[0] = 0  
+                if event.key in [pygame.K_RIGHT, pygame.K_d] and self.movement[0] > 0:
+                    self.movement[0] = 0
+                elif event.key in [pygame.K_LEFT, pygame.K_a] and self.movement[0] < 0:
+                    self.movement[0] = 0
+                elif event.key == pygame.K_z:
+                    self.is_holding_wall = False  # Release from wall if Z is released
+
 
     def update(self):
         if self.game_over:
             return
-        
+
         if self.dashing:
             self.dash_timer -= 1
             if self.dash_timer <= 0:
                 self.dashing = False
                 self.movement[0] = 0
-        
+
         self.rect.x += self.movement[0]
         self.horizontal_collisions()
 
         if not self.is_on_ground:
             self.movement[1] += self.grav
-        
+
         self.rect.y += self.movement[1]
         self.vertical_collisions()
-
+        
+        if self.is_attacking:
+            self.attack_timer -= 1
+            if self.attack_timer <= 0:
+                self.is_attacking = False
         self.update_animation()
         self.mask = pygame.mask.from_surface(self.image)
 
         if self.dash_cooldown_timer > 0:
             self.dash_cooldown_timer -= 1
-    
-    def update_attack_animation(self):
-        if self.facing_right:
-            self.image = self.player_attacking_left[self.attack_frame]
-        else:
-            self.image = self.player_attacking_right[self.attack_frame]
 
-        if self.attack_frame == 2:
-            self.check_sword_collision()
+        if self.is_holding_wall:
+            self.hold_onto_wall()
+        else:
+            self.is_on_wall = False
+
+        if self.is_on_ground:
+            self.jump_count = 2
+            self.has_wall_jumped = False  # Allow future wall jumps
+        if self.wall_jump_timer > 0:
+            self.wall_jump_timer -= 1
+            if self.wall_jump_timer == 0:
+                self.movement[0] = 0
     
     def check_sword_collision(self):
         enemies_hit = pygame.sprite.spritecollide(self, enemy_group, False)
@@ -289,16 +355,46 @@ class Player:
             enemy.take_damage(self.sword_damage)
     
     def jump(self):
-        if self.jump_count > 0:
+        if self.jump_count > 0 and not self.has_wall_jumped:
             self.movement[1] = -self.jump_vel
             self.jump_count -= 1
             self.is_jump = True
+
+    def wall_jump(self):
+        if self.is_holding_wall:
+            self.movement[0] = -self.speed * 2 if self.facing_right else self.speed * 2  # Push away from the wall
+            self.movement[1] = -self.jump_vel  # Jump upwards
+            self.is_jump = True
+            self.is_holding_wall = False  # Release from wall
+            self.is_on_wall = False
+            self.has_wall_jumped = True  # Mark that a wall jump happened
+            self.wall_jump_timer = self.wall_jump_duration
+
+            
+    def hold_onto_wall(self):
+        if self.is_touching_wall() and not self.is_on_ground and self.is_holding_wall:
+            self.movement[1] = 0  # Prevent falling while holding the wall
+            self.is_on_wall = True
+            self.movement[0] = 0  # Stop horizontal movement when holding the wall
+        else:
+            self.is_on_wall = False
+
+    def is_touching_wall(self):
+        future_rect_left = self.rect.copy()
+        future_rect_left.x -= 1
+        future_rect_right = self.rect.copy()
+        future_rect_right.x += 1
+
+        for _, tile_rect, _ in self.tilemap.tile_list:
+            if future_rect_left.colliderect(tile_rect) or future_rect_right.colliderect(tile_rect):
+                return True
+        return False
 
     def swing_sword(self):
         self.is_attacking = True
         self.attack_timer = self.attack_cooldown
         self.attack_frame = 0
-
+ 
     def dash(self):
         if (
             not self.dashing and
@@ -334,31 +430,21 @@ class Player:
 
         for _, tile_rect, tile_mask in self.tilemap.tile_list:
             if future_rect.colliderect(tile_rect):
-                if self.movement[1] > 0:
+                if self.movement[1] > 0:  # Hitting the ground
                     self.rect.bottom = tile_rect.top
                     self.is_on_ground = True
                     self.movement[1] = 0
-                    self.jump_count = 2
-                elif self.movement[1] < 0:
+                    self.jump_count = 2  # Reset jumps when on the ground
+                elif self.movement[1] < 0:  # Hitting the ceiling
                     self.rect.top = tile_rect.bottom
                     self.movement[1] = 0
+
         if not self.is_on_ground:
             self.movement[1] += self.grav
             self.movement[1] = min(self.movement[1], 10)
 
-        if self.is_on_ground and self.movement[0] == 0:
-            self.movement[1] = 0
-
-    def update_animation(self):
-        self.frame_counter += 1
-        if self.frame_counter >= 5:
-            self.frame_counter = 0
-            self.current_frame = (self.current_frame + 1) % len(self.player_walking_right)
-
-        if self.movement[0] != 0:
-            self.image = self.player_walking_right[self.current_frame] if self.facing_right else self.player_walking_left[self.current_frame]
-        else:
-            self.image = self.idle[self.current_frame % len(self.idle)] 
+        '''if self.is_on_ground and self.movement[0] == 0:
+            self.movement[1] = 0 '''
 
     def draw(self, window, camera_x, camera_y):
         self.draw_rect = self.rect.move(-camera_x, -camera_y)
