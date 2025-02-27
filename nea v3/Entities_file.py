@@ -72,7 +72,7 @@ class Enemy(pygame.sprite.Sprite):
 
             if current_node == goal: # If the goal is found, reconstruct the path
                 self.reconstruct_path(came_from, current_node)
-                return
+                return # End the calculation if the current node is found
             
             for neighbour in self.get_neighbours(current_node): # For each neighbour of the current node 
                 temp_g_score = g_score[current_node] + 1 # Calculate the temporary G-score of the neighbour. This is used to determine if the a different path is shorter than the current one
