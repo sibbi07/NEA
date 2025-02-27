@@ -102,9 +102,9 @@ class Enemy(pygame.sprite.Sprite):
         ] # List of directions to check for neighbours
 
         for self.movement in directions:
-            new_cor = (x + self.movement[0]), (y + self.movement[1]) # Calculate the new coordinates of the neighbour
-            if self.tilemap.is_walkable(new_cor): # Checks if the node is walkable
-                neighbours.append(new_cor) # If the node is walkable, add it to the neighbours list
+            new_coor = (x + self.movement[0]), (y + self.movement[1]) # Calculate the new coordinates of the neighbour
+            if self.tilemap.is_walkable(new_ocor): # Checks if the node is walkable
+                neighbours.append(new_coor) # If the node is walkable, add it to the neighbours list
         return neighbours
     
 
