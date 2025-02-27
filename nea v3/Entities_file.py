@@ -26,6 +26,7 @@ class Node:
 def h_score(pos1, pos2): # Heuristic score
     x1, y1 = pos1
     x2, y2 = pos2
+
     return abs(x1 - x2) + abs(y1- y2) # Creates an estimate of the distance between the two nodes but it is not the actual distance of the path
 
 class Enemy(pygame.sprite.Sprite):
@@ -105,7 +106,7 @@ class Enemy(pygame.sprite.Sprite):
             neighbour_coor = (x + self.movement[0]), (y + self.movement[1]) # Calculate the new coordinates of the neighbour
             if self.tilemap.is_walkable(neighbour_coor): # Checks if the node is walkable
                 neighbours.append(neighbour_coor) # If the node is walkable, add it to the neighbours list
-        return neighbour
+        return neighbours
     
 
     def update(self):
@@ -151,7 +152,7 @@ class Player:
         self.scale_factor = 2.5
         self.current_frame = 0
         self.frame_counter = 0
-        self.facing_right = True  # Change to True
+        self.facing_right = True
         self.is_jump = False
         self.jump_vel = 30
         self.grav = 1
@@ -179,7 +180,7 @@ class Player:
         self.dash_timer = 0
         self.dash_cooldown_timer = 0
 
-        self.animation_speed = 3
+        self.animation_speed = 3 #
         self.frame_counter = 0
         self.is_on_ground = True
         self.jump_count = 2
@@ -239,33 +240,37 @@ class Player:
             sprite_list[-1] = sprite_list[-2]
     
     def update_animation(self):
-        if self.is_attacking:
-            self.frame_counter += 1
-            if self.frame_counter >= 5:
-                self.frame_counter = 0
-                self.current_frame = (self.current_frame + 1) % len(self.attacking_right)
-            if self.facing_right:
-                self.image = self.attacking_right[self.current_frame % len(self.attacking_right)]
+        if self.is_attacking: # Checks if the player is attacking
+            self.frame_counter += 1 # Increases the frame counter by 1
+            if self.frame_counter >= self.animation_speed: # Checks if the frame counter is greater than or equal to the animation speed
+                self.frame_counter = 0 # Frame counter is reset
+                self.current_frame = (self.current_frame + 1) % len(self.attacking_right) # Changes the current frame to the next frame
+            if self.facing_right: # Checks the direction the player is facing
+                self.image = self.attacking_right[self.current_frame % len(self.attacking_right)] # Runs the animation for attacking to the right
             else:
-                self.image = self.attacking_left[self.current_frame % len(self.attacking_left)]
-            if self.current_frame == 2:
-                self.check_sword_collision()
-        elif not self.is_on_ground:
+                self.image = self.attacking_left[self.current_frame % len(self.attacking_left)] # Runs the animation for attacking to the left
+            if self.current_frame == 2: 
+                self.check_sword_collision() # Checks for collision with the sword
+        elif not self.is_on_ground: # Checks if the player is in the air
             self.frame_counter += 1
             if self.frame_counter >= 5:
                 self.frame_counter = 0
                 self.current_frame = (self.current_frame + 1) % len(self.jumping_right)
+            # Change the animation to the jumping sprite depending on the direction the player is facing
             if self.movement[1] < 0:
                 self.image = self.jumping_right[self.current_frame % len(self.jumping_right)] if self.facing_right else self.jumping_left[self.current_frame % len(self.jumping_left)]
+            # Change the animation to the falling sprite depending on the direction the player is facing
             else:
                 self.image = self.falling_right[self.current_frame % len(self.falling_right)] if self.facing_right else self.falling_left[self.current_frame % len(self.falling_left)]
-        elif self.movement[0] != 0:
+        elif self.movement[0] != 0: # Checks if the player is moving horizontally (walking)
             self.frame_counter += 1
             if self.frame_counter >= 5:
                 self.frame_counter = 0
                 self.current_frame = (self.current_frame + 1) % len(self.walking_right)
+            # Change the animation to the walking sprite depending on the direction the player is facing
             self.image = self.walking_right[self.current_frame % len(self.walking_right)] if self.facing_right else self.walking_left[self.current_frame % len(self.walking_left)]
         else:
+            #If no movement is detected, the idle animation runs
             self.frame_counter += 1
             if self.frame_counter >= 5:
                 self.frame_counter = 0
@@ -276,10 +281,10 @@ class Player:
         if self.game_over == False:
             if event.type == pygame.KEYDOWN:
                 if not self.dashing:
-                    if event.key in [pygame.K_RIGHT, pygame.K_d]:
+                    if event.key in [pygame.K_RIGHT, pygame.K_d]: # Checks if the right arrow key or D key are pressed
                         self.movement[0] = self.speed
                         self.facing_right = True
-                    elif event.key in [pygame.K_LEFT, pygame.K_a]:
+                    elif event.key in [pygame.K_LEFT, pygame.K_a]: # Checks if the left arrow key or A key are pressed
                         self.movement[0] = -self.speed
                         self.facing_right = False
 
@@ -299,9 +304,9 @@ class Player:
 
             elif event.type == pygame.KEYUP:
                 if event.key in [pygame.K_RIGHT, pygame.K_d] and self.movement[0] > 0:
-                    self.movement[0] = 0
+                    self.movement[0] = 0 # Stops the player from moving when the right arrow key or D key are released
                 elif event.key in [pygame.K_LEFT, pygame.K_a] and self.movement[0] < 0:
-                    self.movement[0] = 0
+                    self.movement[0] = 0 # Stops the player from moving when the left arrow key or A key are released
                 elif event.key == pygame.K_z:
                     self.is_holding_wall = False  # Release from wall if Z is released
 
@@ -309,7 +314,6 @@ class Player:
     def update(self):
         if self.game_over:
             return
-
         if self.dashing:
             self.dash_timer -= 1
             if self.dash_timer <= 0:
@@ -343,10 +347,10 @@ class Player:
         if self.is_on_ground:
             self.jump_count = 2
             self.has_wall_jumped = False  # Allow future wall jumps
-        if self.wall_jump_timer > 0:
-            self.wall_jump_timer -= 1
+        if self.wall_jump_timer > 0: # Checks if the timer for the wall jump is more than 0
+            self.wall_jump_timer -= 1 # Decrease the timer by 1
             if self.wall_jump_timer == 0:
-                self.movement[0] = 0
+                self.movement[0] = 0 # Stop the horizontal movement in the air if the timer is 0
     
     def check_sword_collision(self):
         enemies_hit = pygame.sprite.spritecollide(self, enemy_group, False)
@@ -354,13 +358,13 @@ class Player:
             enemy.take_damage(self.sword_damage)
     
     def jump(self):
-        if self.jump_count > 0 and not self.has_wall_jumped:
-            self.movement[1] = -self.jump_vel
-            self.jump_count -= 1
-            self.is_jump = True
+        if self.jump_count > 0 and not self.has_wall_jumped: # Checks if the user has any jumps left and if they haven't just wall jumped
+            self.movement[1] = -self.jump_vel # Moves the player up
+            self.jump_count -= 1 # Decreases the jump count by 1
+            self.is_jump = True # Sets the player as jumping
 
     def wall_jump(self):
-        if self.is_holding_wall:
+        if self.is_holding_wall: # Checks if the player is holding onto a wall before wall jumping
             self.movement[0] = -self.speed * 2 if self.facing_right else self.speed * 2  # Push away from the wall
             self.movement[1] = -self.jump_vel  # Jump upwards
             self.is_jump = True
@@ -379,10 +383,10 @@ class Player:
             self.is_on_wall = False
 
     def is_touching_wall(self):
-        future_rect_left = self.rect.copy()
-        future_rect_left.x -= 1
-        future_rect_right = self.rect.copy()
-        future_rect_right.x += 1
+        future_rect_left = self.rect.copy() # Create a copy of the player's rect
+        future_rect_left.x -= 1 # Move the rect to the left
+        future_rect_right = self.rect.copy() # Create a copy of the player's rect
+        future_rect_right.x += 1 # Move the rect to the right
 
         for _, tile_rect, _ in self.tilemap.tile_list:
             if future_rect_left.colliderect(tile_rect) or future_rect_right.colliderect(tile_rect):
@@ -398,7 +402,7 @@ class Player:
         if (
             not self.dashing and
             self.dash_cooldown_timer == 0
-        ):
+        ): # Check if the player is able to dash
             self.dashing = True
             self.dash_timer = self.dash_duration
             self.dash_cooldown_timer = self.dash_cooldown
@@ -441,9 +445,6 @@ class Player:
         if not self.is_on_ground:
             self.movement[1] += self.grav
             self.movement[1] = min(self.movement[1], 10)
-
-        '''if self.is_on_ground and self.movement[0] == 0:
-            self.movement[1] = 0 '''
 
     def draw(self, window, camera_x, camera_y):
         self.draw_rect = self.rect.move(-camera_x, -camera_y)
