@@ -154,7 +154,7 @@ class Player:
         self.frame_counter = 0
         self.facing_right = True
         self.is_jump = False
-        self.jump_vel = 30
+        self.jump_vel = 25
         self.grav = 1
         self.game_over = False
 
@@ -312,50 +312,50 @@ class Player:
 
 
     def update(self):
-        if self.game_over:
-            return
-        if self.dashing:
-            self.dash_timer -= 1
-            if self.dash_timer <= 0:
-                self.dashing = False
-                self.movement[0] = 0
+        if self.game_over: # If the game is over
+            return  # Don't update the player
+        if self.dashing: # Checks if the player is dashing
+            self.dash_timer -= 1 # Decrease the dash timer by 1
+            if self.dash_timer <= 0: # If the dash timer is less than or equal to 0
+                self.dashing = False # Stop the player from dashing
+                self.movement[0] = 0 # Stop the player's horizontal movement
 
-        self.rect.x += self.movement[0]
+        self.rect.x += self.movement[0] # Move the player by the x movement
         self.horizontal_collisions()
 
-        if not self.is_on_ground:
-            self.movement[1] += self.grav
+        if not self.is_on_ground: # If the player is not on the ground
+            self.movement[1] += self.grav # Apply gravity to the player
 
-        self.rect.y += self.movement[1]
+        self.rect.y += self.movement[1] # Move the player by the y movement
         self.vertical_collisions()
         
-        if self.is_attacking:
-            self.attack_timer -= 1
-            if self.attack_timer <= 0:
-                self.is_attacking = False
-        self.update_animation()
-        self.mask = pygame.mask.from_surface(self.image)
+        if self.is_attacking: # If the player is attacking
+            self.attack_timer -= 1 # Decrease the attack timer by 1
+            if self.attack_timer <= 0: # If the attack timer is less than or equal to 0
+                self.is_attacking = False # Stop the player from attacking
+        self.update_animation() # Update the player's animation
+        self.mask = pygame.mask.from_surface(self.image) # Update the player's mask
 
-        if self.dash_cooldown_timer > 0:
-            self.dash_cooldown_timer -= 1
+        if self.dash_cooldown_timer > 0: # If the dash cooldown timer is still running
+            self.dash_cooldown_timer -= 1 # Decrease the dash cooldown timer by 1
 
         if self.is_holding_wall:
             self.hold_onto_wall()
         else:
             self.is_on_wall = False
 
-        if self.is_on_ground:
-            self.jump_count = 2
+        if self.is_on_ground: # If the player is on the ground
+            self.jump_count = 2 # Reset the jump count
             self.has_wall_jumped = False  # Allow future wall jumps
         if self.wall_jump_timer > 0: # Checks if the timer for the wall jump is more than 0
             self.wall_jump_timer -= 1 # Decrease the timer by 1
-            if self.wall_jump_timer == 0:
-                self.movement[0] = 0 # Stop the horizontal movement in the air if the timer is 0
+            if self.wall_jump_timer == 0: # If the timer is 0
+                self.movement[0] = 0 # Stop the horizontal movement in the air
     
     def check_sword_collision(self):
-        enemies_hit = pygame.sprite.spritecollide(self, enemy_group, False)
-        for enemy in enemies_hit:
-            enemy.take_damage(self.sword_damage)
+        enemies_hit = pygame.sprite.spritecollide(self, enemy_group, False) # Check for collision with the sword
+        for enemy in enemies_hit: # For each enemy hit by the sword
+            enemy.take_damage(self.sword_damage) # Deal damage to the enemy
     
     def jump(self):
         if self.jump_count > 0 and not self.has_wall_jumped: # Checks if the user has any jumps left and if they haven't just wall jumped
@@ -388,64 +388,61 @@ class Player:
         future_rect_right = self.rect.copy() # Create a copy of the player's rect
         future_rect_right.x += 1 # Move the rect to the right
 
-        for _, tile_rect, _ in self.tilemap.tile_list:
-            if future_rect_left.colliderect(tile_rect) or future_rect_right.colliderect(tile_rect):
-                return True
-        return False
-
-    def swing_sword(self):
-        self.is_attacking = True
-        self.attack_timer = self.attack_cooldown
-        self.attack_frame = 0
+        for _, tile_rect, _ in self.tilemap.tile_list: # For each tile in the tile list
+            return future_rect_left.colliderect(tile_rect) or future_rect_right.colliderect(tile_rect) # Check if the player's colliding with the wall
+            
+    def swing_sword(self): # Function for the player to swing the sword
+        self.is_attacking = True # Set the player as attacking
+        self.attack_timer = self.attack_cooldown # Set the attack timer to the attack cooldown
  
     def dash(self):
         if (
             not self.dashing and
             self.dash_cooldown_timer == 0
         ): # Check if the player is able to dash
-            self.dashing = True
-            self.dash_timer = self.dash_duration
-            self.dash_cooldown_timer = self.dash_cooldown
+            self.dashing = True # Set the player as dashing
+            self.dash_timer = self.dash_duration # Set the dash timer to the dash duration
+            self.dash_cooldown_timer = self.dash_cooldown # Set the dash cooldown timer to the dash cooldown
             
-            self.movement[0] = -self.dash_speed if not self.facing_right else self.dash_speed
+            self.movement[0] = -self.dash_speed if not self.facing_right else self.dash_speed # Move the player by the dash speed depending on the direction
 
     def check_mask_collisions(self, tile_rect, tile_mask):
-        offset_x = tile_rect.x - self.rect.x
-        offset_y = tile_rect.y - self.rect.y
-        return self.mask.overlap(tile_mask, (offset_x, offset_y))
+        offset_x = tile_rect.x - self.rect.x # Calculate the x offset 
+        offset_y = tile_rect.y - self.rect.y # Calculate the y offset
+        return self.mask.overlap(tile_mask, (offset_x, offset_y)) # Check if the player's mask is overlapping with the tile's mask
     
     def horizontal_collisions(self):
-        future_rect = self.rect.copy()
-        future_rect.x += self.movement[0]
+        future_rect = self.rect.copy() # Create a copy of the player's rect
+        future_rect.x += self.movement[0] # Move the rect by the x movement
 
-        for _, tile_rect, tile_mask in self.tilemap.tile_list:
-            if future_rect.colliderect(tile_rect):
-                if self.movement[0] > 0:
-                    self.rect.right = tile_rect.left
-                elif self.movement[0] < 0:
-                    self.rect.left = tile_rect.right
-                self.movement[0] = 0
+        for _, tile_rect, _ in self.tilemap.tile_list: # For each tile in the tile list
+            if future_rect.colliderect(tile_rect): # Check if the player's rect is colliding with the tile's rect
+                if self.movement[0] > 0: # If the player is moving right
+                    self.rect.right = tile_rect.left # Set the player's right side equal to the tile's left side
+                elif self.movement[0] < 0: # If the player is moving left
+                    self.rect.left = tile_rect.right # Set the player's left side equal to the tile's right side
+                self.movement[0] = 0 # Stop the player's horizontal movement
 
     def vertical_collisions(self):
-        self.is_on_ground = False
-        future_rect = self.rect.copy()
-        future_rect.y += self.movement[1]
+        self.is_on_ground = False # Assume the player is not on the ground
+        future_rect = self.rect.copy() # Create a copy of the player's rect
+        future_rect.y += self.movement[1] # Move the rect by the y movement
 
-        for _, tile_rect, tile_mask in self.tilemap.tile_list:
-            if future_rect.colliderect(tile_rect):
+        for _, tile_rect, _ in self.tilemap.tile_list: # For each tile in the tile list
+            if future_rect.colliderect(tile_rect): # Check if the player's rect is colliding with the tile's rect
                 if self.movement[1] > 0:  # Hitting the ground
-                    self.rect.bottom = tile_rect.top
-                    self.is_on_ground = True
-                    self.movement[1] = 0
+                    self.rect.bottom = tile_rect.top # Set the player's bottom side equal to the tile's top side
+                    self.is_on_ground = True # Set the player as on the ground
+                    self.movement[1] = 0 # Stop the player's vertical movement
                     self.jump_count = 2  # Reset jumps when on the ground
-                elif self.movement[1] < 0:  # Hitting the ceiling
-                    self.rect.top = tile_rect.bottom
-                    self.movement[1] = 0
+                elif self.movement[1] < 0:  # Hitting the bottom of a tile 
+                    self.rect.top = tile_rect.bottom # Set the player's top side equal to the tile's bottom side
+                    self.movement[1] = 0 # Stop the player's vertical movement
 
-        if not self.is_on_ground:
-            self.movement[1] += self.grav
-            self.movement[1] = min(self.movement[1], 10)
+        if not self.is_on_ground: # If the player is not on the ground
+            self.movement[1] += self.grav # Apply gravity to the player
+            self.movement[1] = min(self.movement[1], 10) # Limit the player's falling speed
 
-    def draw(self, window, camera_x, camera_y):
-        self.draw_rect = self.rect.move(-camera_x, -camera_y)
-        window.blit(self.image, self.draw_rect.topleft)
+    def draw(self, window, camera_x, camera_y): # Draw the player
+        self.draw_rect = self.rect.move(-camera_x, -camera_y) # Move the player's rect by the camera's x and y
+        window.blit(self.image, self.draw_rect.topleft) # Draw the player's image at the top left of the player's rect
