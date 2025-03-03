@@ -1,7 +1,8 @@
 import pygame
+import math
 from queue import PriorityQueue
-from Spriteloader import loadSprite_x, loadSprite_y
-from game_objects import enemy_group
+from Spriteloader import loadSprite_x
+from game_objects import enemy_group, projectile_group, Projectiles
 
 class Node:
     def __init__(self,x, y):
@@ -32,17 +33,27 @@ def h_score(pos1, pos2): # Heuristic score
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y, tilemap, player):
         super().__init__()
-        self.spritesheet = pygame.image.load("Sprites/NEA + converted terraria sprites/Enemy converted/NPC_4.png")
-        self.image = loadSprite_y(self.spritesheet, 40, 56, 1, 1, False) # Loads the image of the enemy
+        self.spritesheet = pygame.image.load("Sprites/enemy/NPC_4_rotated.png").convert_alpha()
+        self.image = loadSprite_x(self.spritesheet, 166, 110, 1, 0.5, False) # Loads the image of the enemy
         self.rect = self.image.get_rect(topleft = (x,y)) # Set the rect of the enemy to the rect of the image
         self.tilemap = tilemap # Initialise the tilemap
         self.player = player # Initalise the player
         self.path = [] # Make the path empty initially
-        self.speed = 4
-        self.tile_size = 48
-
-        self.health = 3
+        self.speed = 2
+        self.tile_size = 32
+        self.detection_range = 640 # 20 tiles, each tile is 32x32
+        self.health = 10
         self.alive = True
+        self.last_shot = pygame.time.get_ticks()
+        self.shoot_cooldown = 1500
+
+    def shoot_projectiles(self):
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_shot > self.shoot_cooldown:
+            direction = 1 if self.player.rect.x > self.rect.x else -1
+            projectile = Projectiles(self.rect.x, self.rect.y, direction)
+            projectile_group.add(projectile)
+            self.last_shot = current_time
 
     def take_damage(self, damage): # Function for the enemy to take damage
         self.health -= damage # Reduce the health of the enemy by the damage dealt
@@ -114,9 +125,20 @@ class Enemy(pygame.sprite.Sprite):
             return # Doesn't find the path if the enemy sprite is not there
         if not self.alive: # Doesn't find the path if the enemy is 'dead'
             return
+
+        distance_x = (self.player.rect.centerx - self.rect.centerx) 
+        distance_y = (self.player.rect.centery - self.rect.centery)
+        distance = math.sqrt(distance_x ** 2 + distance_y ** 2)
+        
+        if distance > self.detection_range:
+            self.path = []
+            return
+
+        player_tile_x = self.player.rect.x // self.tile_size
+        player_tile_y = self.player.rect.y // self.tile_size
         if (
             not self.path or
-            self.path[-1] != (self.player.rect.x // self.tile_size, self.player.rect.y // self.tile_size)
+            self.path[-1] != (player_tile_x, player_tile_y)
         ): 
             self.calculate_path() # If there is no path or the player has moved, find a new path
         if self.path: # If there is a path
@@ -137,16 +159,15 @@ class Enemy(pygame.sprite.Sprite):
 
             if self.rect.x == target_x and self.rect.y == target_y: # If the enemy has reached the target node
                 self.path.pop(0) # Remove the target node from the path
+        self.shoot_projectiles()
 
     def draw(self, window, camera_x, camera_y):
         self.draw_rect = self.rect.move(-camera_x, -camera_y)
         window.blit(self.image, self.draw_rect.topleft)
-        pygame.draw.rect(window, (255, 255, 255), self.rect, 2)  # Draw white rectangle around the player
             
-
     
 class Player:
-    def __init__(self, window, tilemap):
+    def __init__(self, tilemap):
         self.width = 16
         self.height = 16
         self.scale_factor = 2.5
@@ -162,7 +183,7 @@ class Player:
 
         self.load_spritesheets()
 
-        self.image = self.idle[0]
+        self.image = self.idle_right[0]
         self.rect = self.image.get_rect()
         self.rect.x = 50
         self.rect.y = self.tilemap.tilemap_height - self.image.get_height() - 50
@@ -171,7 +192,7 @@ class Player:
         self.ground_level = self.calculate_ground_level()
 
         self.movement = [0, 0] 
-        self.speed = 3
+        self.speed = 4
 
         self.dashing = False
         self.dash_speed = 10
@@ -180,7 +201,7 @@ class Player:
         self.dash_timer = 0
         self.dash_cooldown_timer = 0
 
-        self.animation_speed = 3 #
+        self.animation_speed = 4
         self.frame_counter = 0
         self.is_on_ground = True
         self.jump_count = 2
@@ -209,9 +230,16 @@ class Player:
     def flip_sprites(self, sprites):
         return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
     
-    def load_sprites(self, sprite_sheet, frame_num):
-        frame_num = max(frame_num, 1)
-        return [loadSprite_x(sprite_sheet, self.width, self.height, i, self.scale_factor, False) for i in range(frame_num)]
+    def load_sprites(self, spritesheet, frame_num):
+        sprites = []
+        for i in range(frame_num):
+            sprite = loadSprite_x(spritesheet, self.width, self.height, i, self.scale_factor, False)
+            if sprite is None:
+                print(f"Error: Frame {i} in {spritesheet} is None!")
+            else:
+                sprites.append(sprite)  # Only add valid sprites to the list
+        return sprites
+
     
     def load_spritesheets(self):
         self.walking_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_run_anim_strip_6.png').convert_alpha()
@@ -220,18 +248,19 @@ class Player:
         self.jumping_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_jump_up_anim_strip_3.png').convert_alpha()
         self.falling_spritesheet = pygame.image.load('Sprites/platformer_metroidvania asset pack v1.01/herochar sprites(new)/herochar_jump_down_anim_strip_3.png').convert_alpha()
         
-        self.idle = self.load_sprites(self.idle_spritesheet, 3)
+        self.idle_right = self.load_sprites(self.idle_spritesheet, 3)
         self.walking_right = self.load_sprites(self.walking_spritesheet, 7)
         self.attacking_right = self.load_sprites(self.attacking_spritesheet, 3)
         self.jumping_right = self.load_sprites(self.jumping_spritesheet, 2)
         self.falling_right = self.load_sprites(self.falling_spritesheet, 2)
 
+        self.idle_left = self.flip_sprites(self.idle_right)
         self.walking_left = self.flip_sprites(self.walking_right)
         self.attacking_left = self.flip_sprites(self.attacking_right)
         self.jumping_left = self.flip_sprites(self.jumping_right)
         self.falling_left = self.flip_sprites(self.falling_right)
 
-        self.ensure_last_frame(self.idle)
+        self.ensure_last_frame(self.idle_right)
         self.ensure_last_frame(self.walking_right)
         self.ensure_last_frame(self.attacking_right)
    
@@ -240,42 +269,32 @@ class Player:
             sprite_list[-1] = sprite_list[-2]
     
     def update_animation(self):
-        if self.is_attacking: # Checks if the player is attacking
-            self.frame_counter += 1 # Increases the frame counter by 1
-            if self.frame_counter >= self.animation_speed: # Checks if the frame counter is greater than or equal to the animation speed
-                self.frame_counter = 0 # Frame counter is reset
-                self.current_frame = (self.current_frame + 1) % len(self.attacking_right) # Changes the current frame to the next frame
-            if self.facing_right: # Checks the direction the player is facing
-                self.image = self.attacking_right[self.current_frame % len(self.attacking_right)] # Runs the animation for attacking to the right
-            else:
-                self.image = self.attacking_left[self.current_frame % len(self.attacking_left)] # Runs the animation for attacking to the left
-            if self.current_frame == 2: 
-                self.check_sword_collision() # Checks for collision with the sword
-        elif not self.is_on_ground: # Checks if the player is in the air
-            self.frame_counter += 1
-            if self.frame_counter >= 5:
-                self.frame_counter = 0
-                self.current_frame = (self.current_frame + 1) % len(self.jumping_right)
-            # Change the animation to the jumping sprite depending on the direction the player is facing
-            if self.movement[1] < 0:
-                self.image = self.jumping_right[self.current_frame % len(self.jumping_right)] if self.facing_right else self.jumping_left[self.current_frame % len(self.jumping_left)]
-            # Change the animation to the falling sprite depending on the direction the player is facing
-            else:
-                self.image = self.falling_right[self.current_frame % len(self.falling_right)] if self.facing_right else self.falling_left[self.current_frame % len(self.falling_left)]
-        elif self.movement[0] != 0: # Checks if the player is moving horizontally (walking)
-            self.frame_counter += 1
-            if self.frame_counter >= 5:
-                self.frame_counter = 0
-                self.current_frame = (self.current_frame + 1) % len(self.walking_right)
-            # Change the animation to the walking sprite depending on the direction the player is facing
-            self.image = self.walking_right[self.current_frame % len(self.walking_right)] if self.facing_right else self.walking_left[self.current_frame % len(self.walking_left)]
+        if self.is_attacking:
+            self.animate(self.attacking_right if self.facing_right else self.attacking_left)
+        if not self.is_on_ground:
+            if self.movement[1] < 0:  # If the player is moving up (jumping)
+                self.animate(self.jumping_right if self.facing_right else self.jumping_left)
+            else:  # If the player is moving down (falling)
+                self.animate(self.falling_right if self.facing_right else self.falling_left)
+        elif self.movement[0] != 0:
+            self.animate(self.walking_right if self.facing_right else self.walking_left)
         else:
-            #If no movement is detected, the idle animation runs
-            self.frame_counter += 1
-            if self.frame_counter >= 5:
-                self.frame_counter = 0
-                self.current_frame = (self.current_frame + 1) % len(self.idle)
-            self.image = self.idle[self.current_frame % len(self.idle)]
+            self.animate(self.idle_right if self.facing_right else self.idle_left) 
+
+    def animate(self, spritesheet):
+        self.frame_counter += 1
+        if self.frame_counter >= self.animation_speed:
+            self.frame_counter = 0
+            self.current_frame = (self.current_frame + 1) % len(spritesheet)
+            print(f"Current frame: {self.current_frame}, Spritesheet length: {len(spritesheet)}")  # Debug print
+
+        if self.current_frame >= len(spritesheet) or self.current_frame < 0:
+            print(f"Error: current_frame out of bounds! Frame: {self.current_frame}, Spritesheet length: {len(spritesheet)}")  # Debug print
+            self.current_frame = 0  # Reset to avoid crashes
+
+        self.image = spritesheet[self.current_frame]
+        if self.image is None:
+            print(f"Error: Frame {self.current_frame} is None!")  # Debug print
 
     def input_handling(self, event):
         if self.game_over == False:
@@ -333,6 +352,8 @@ class Player:
             self.attack_timer -= 1 # Decrease the attack timer by 1
             if self.attack_timer <= 0: # If the attack timer is less than or equal to 0
                 self.is_attacking = False # Stop the player from attacking
+            else:
+                self.check_sword_collision()
         self.update_animation() # Update the player's animation
         self.mask = pygame.mask.from_surface(self.image) # Update the player's mask
 
@@ -353,9 +374,11 @@ class Player:
                 self.movement[0] = 0 # Stop the horizontal movement in the air
     
     def check_sword_collision(self):
-        enemies_hit = pygame.sprite.spritecollide(self, enemy_group, False) # Check for collision with the sword
-        for enemy in enemies_hit: # For each enemy hit by the sword
-            enemy.take_damage(self.sword_damage) # Deal damage to the enemy
+        sword_rect = self.rect.inflate(self.sword_range, 0) if self.facing_right else self.rect.inflate(-self.sword_range, 0)
+        enemies_hit = pygame.sprite.spritecollide(self, enemy_group, False, pygame.sprite.collide_rect)
+        for enemy in enemies_hit:
+            if sword_rect.colliderect(enemy.rect):
+                enemy.take_damage(self.sword_damage)
     
     def jump(self):
         if self.jump_count > 0 and not self.has_wall_jumped: # Checks if the user has any jumps left and if they haven't just wall jumped
@@ -389,8 +412,9 @@ class Player:
         future_rect_right.x += 1 # Move the rect to the right
 
         for _, tile_rect, _ in self.tilemap.tile_list: # For each tile in the tile list
-            return future_rect_left.colliderect(tile_rect) or future_rect_right.colliderect(tile_rect) # Check if the player's colliding with the wall
-            
+            if future_rect_left.colliderect(tile_rect) or future_rect_right.colliderect(tile_rect): # Check if the player's colliding with the wall
+                return True
+        return False
     def swing_sword(self): # Function for the player to swing the sword
         self.is_attacking = True # Set the player as attacking
         self.attack_timer = self.attack_cooldown # Set the attack timer to the attack cooldown
